@@ -1,0 +1,198 @@
+
+<canvas id="canvas" class="gridCanvas" width="1200" height="500" ></canvas>
+
+
+<script>
+
+    function getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min) + min); //The maximum is exclusive and the minimum is inclusive
+    }
+    let el= document.getElementById('canvas');
+    let ctx = el.getContext('2d');
+    let s = 30;
+    let fps=2;
+
+    let colors=['#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', 
+        '#42d4f4', '#f032e6', '#bfef45', '#fabed4', '#469990', '#dcbeff', 
+        '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', 
+        '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000'];
+
+    function drawGrid (ctx){
+               
+        let nX = Math.floor(el.width / s) - 2
+        let nY = Math.floor(el.height / s) - 2
+        let pX = el.width - nX * s
+        let pY = el.height - nY * s
+        
+        // Bonus code for choosing nX instead of s
+        /* let nX = 20
+        let s = Math.floor(el.width / (nX + 2))
+        let pX = el.width - nX * s
+        let nY = Math.floor((el.height - pX) / (el.width - pX) * nX)
+        let pY = el.height - nY * s */
+        
+        let pL = Math.ceil(pX / 2) - 0.5
+        let pT = Math.ceil(pY / 2) - 0.5
+        let pR = el.width - nX * s - pL
+        let pB = el.height - nY * s - pT
+        
+        ctx.strokeStyle = 'lightgrey';
+        ctx.beginPath();
+        for (var x = pL; x <= el.width - pR; x += s) {
+            ctx.moveTo(x, pT)
+            ctx.lineTo(x, el.height - pB)
+        }
+        for (var y = pT; y <= el.height - pB; y += s) {
+            ctx.moveTo(pL, y)
+            ctx.lineTo(el.width - pR, y)
+        }
+        ctx.stroke();
+        //ctx.save();
+        return {pL:pL,pR:pR,pT:pT,pB:pB, nX:nX,nY:nY};
+    }
+
+    function drawShape(ctx,c,box)
+    {
+        c.forEach((p,i) => {
+            ctx.fillStyle = colors[box[i]];
+            ctx.fillRect(p[0],p[1], s, s);
+            //let num=int(Math.random() * (100 - 10) + 10);
+            let num=i;
+            text(ctx, p[0]+s/2,p[1]+s/2,i+1);//getRandomInt(10,100));
+        });
+    }
+
+    function barrier(ctx,params,[x,y])
+    {
+        ctx.fillStyle ='black';
+
+        let step=params.step;
+        let c=params.image;
+        let box=params.semantics;
+
+        let pL=params.pL;let pY=params.pY;
+        let pT=params.pT;
+        let nY=params.nY;let nX=params.nX;
+
+        
+        let eps=0.001;
+        let c_new= c.map((p,i) => {
+            if(Math.abs(Math.pow(Math.pow(p[0]-x,2) + Math.pow(p[1]-y,2),0.5)-s ) <= eps)
+              return reArrange(p,c);
+        });
+
+        let x= pL + nX*s/2 + nY *s/2 -s* (step%nY);
+        let y= pT + s * (step%nY);
+
+        ctx.fillRect(x,y, s, s);
+        drawShape(ctx,c_new,box);
+
+        return [c_new,[x,y]];
+        //ctx.arc(x, y,s/2, 0, 2 * Math.PI);
+
+    }
+    function dynamics(ctx,step,box=[])
+    { 
+        
+        let BoxSemantics= box.length >0 ?box:[0,1,2,3,4];
+                    
+        let Geometry=[ [-1,0],[0,-1],[1,0],[0,1],[0,0] ];
+        //  
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.beginPath();
+        let params=drawGrid (ctx);
+        //ctx=params.ctx;
+        let curImage= scale(Geometry,[[s,s], [s,s], [s,s], [s,s], [s,s] ]);
+        let pL=params.pL;let pY=params.pY;
+        let pT=params.pT;
+        let nY=params.nY;let nX=params.nX;
+        curImage=translate( curImage, [ [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2] ] );
+
+        let x= pL + nX*s/2 + nY *s/2 -s* (step%nY);
+        let y= pT + s * (step%nY);
+
+
+        if( Math.abs(x- pL-nX*s/2) < 3*s ||  Math.abs(y-pT-nY*s/2) < 3*s)
+        {
+            BoxSemantics=permute(BoxSemantics)[getRandomInt(0,119)];
+        }
+
+        let res=barrier(ctx,params,[x,y]);
+        
+
+        setTimeout(() => {
+            requestAnimationFrame(function() {
+                dynamics(ctx,step,BoxSemantics);
+            });
+            step+=1;
+        }, 1000 / fps);
+
+        //return box;
+
+    }
+    function translate(c,x)
+    {
+      return c.map((p,i)=>{
+        return [p[0]+x[i][0], p[1]+x[i][1] ];
+      })
+    }
+    function rotate(c,r)
+    {
+      return c.map((p,i)=>{
+        return [p[0]+  Math.cos(r[i][0]), p[1]+ Math.sin(r[i][1]) ];
+      })
+    }
+    function scale(c,s)
+    {
+        return c.map((p,i)=>{
+            return [p[0] * s [i][0], p[1] * s[i][1] ];
+      })
+    }
+
+    function text(ctx,x,y,text)
+    {
+        ctx.font="20px Georgia";
+        ctx.textAlign="center"; 
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#000000";
+        ctx.fillText(text,x,y);
+    }
+
+    const permute = (input = [], permutation = [],isCyclic=true) => {
+        if (input.length === 0) return [permutation]; // this will be one of the result
+
+        // choose each number in a loop
+        return input.reduce((allPermutations, current) => {
+            // reduce the input by removing the current element
+            // as we'll fix it by putting it in `permutation` array
+            const rest = input.filter(n => n != current);
+            return [
+                ...allPermutations,
+                // fixing our choice in the 2nd arg
+                // by concatenationg current with permutation
+                ...permute(rest, [...permutation, current])
+            ];
+        }, []);
+    }
+    document.addEventListener("DOMContentLoaded", function(event){
+        //let params=drawGrid(ctx);
+        dynamics(ctx,0);
+        
+    })
+</script>
+
+<style>
+	.gridCanvas {
+		position: relative !important;
+		border: lightgrey 1px solid;
+		border-radius: 5px;
+		box-shadow: 0 2px 3px rgba(0, 0, 0, 0.2);
+	}
+</style>
+
+<script>
+//https://gist.githubusercontent.com/bobspace/2712980/raw/dba7199e7eccd73ba83bda39cb24c7f5fa8aec70/css_colors.js
+
+</script>
