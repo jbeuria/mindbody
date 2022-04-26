@@ -1,7 +1,6 @@
 
 <canvas id="canvas" class="gridCanvas" width="1200" height="500" ></canvas>
 
-
 <script>
 
     function getRandomInt(min, max) {
@@ -13,7 +12,8 @@
     let ctx = el.getContext('2d');
     let s = 30;
     let fps=2;
-    
+    let eps=0.001;
+
     let sqrt2=Math.sqrt(2.0);
 
     let colors=['#e6194B', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', 
@@ -21,10 +21,12 @@
         '#9A6324', '#fffac8', '#800000', '#aaffc3', '#808000', 
         '#ffd8b1', '#000075', '#a9a9a9', '#ffffff', '#000000'];
 
-    function drawGrid (ctx){
-               
-        let nX = Math.floor(el.width / s) - 2
-        let nY = Math.floor(el.height / s) - 2
+
+    function boxTheShape(ctx,geo)
+    {
+        let nX = Math.floor(canvas.width / s) -2
+        let nY = Math.floor(canvas.height / s) -2
+
         let pX = el.width - nX * s
         let pY = el.height - nY * s
         
@@ -40,83 +42,264 @@
         let pR = el.width - nX * s - pL
         let pB = el.height - nY * s - pT
         
+        let center= [Math.floor(nX/2),Math.floor(nY/2)];
+        let box=new Array(nX).fill(0).map(() => new Array(nY).fill(0));
+        let centerXY= [ pL+ center[0]*s, pT + center[1]*s ];
+
         ctx.strokeStyle = 'lightgrey';
         ctx.beginPath();
-        for (var x = pL; x <= el.width - pR; x += s) {
-            ctx.moveTo(x, pT)
-            ctx.lineTo(x, el.height - pB)
+
+        for (var x = 0; x <= nX; x += 1) {
+            ctx.moveTo(x*s + pL  , pT)
+            ctx.lineTo(x*s + pL , el.height - pB)
         }
-        for (var y = pT; y <= el.height - pB; y += s) {
-            ctx.moveTo(pL, y)
-            ctx.lineTo(el.width - pR, y)
+        for (var y = 0; y <= nY; y += 1) {
+            ctx.moveTo(pL, y*s + pT);
+            ctx.lineTo(el.width - pR, y*s + pT);
         }
         ctx.stroke();
-        //ctx.save();
-        return {pL:pL,pR:pR,pT:pT,pB:pB, nX:nX,nY:nY};
-    }
 
-    function drawShape(ctx,c,box)
-    {
-        c.forEach((p,i) => {
-            ctx.fillStyle = colors[box[i]];
-            ctx.fillRect(p[0],p[1], s, s);
-            //let num=int(Math.random() * (100 - 10) + 10);
-            let num=i;
-            text(ctx, p[0]+s/2,p[1]+s/2,i+1);//getRandomInt(10,100));
-        });
-    }
+       // if(c.length==0) centroid=centerXY;
+       // else centroid= c.reduce((a,b)=>[a[0]+b[0],a[1]+b[1]], [0,0]);
+       // centroid=[centroid[0]/c.length, centroid[1]/c.length];
 
-    function barrier(ctx,params,[x,y])
-    {
-        ctx.fillStyle ='black';
+        let cI=0;
+        //console.log(nX,nY);
 
-        let step=params.step;
-        let c=params.image;
-        let box=params.semantics;
-
-        let pL=params.pL;let pY=params.pY;
-        let pT=params.pT;
-        let nY=params.nY;let nX=params.nX;
-
-        
-        let eps=0.001;
-        let c_new= c.map((p,i) => {
-            if(Math.abs(Math.pow(Math.pow(p[0]-x,2) + Math.pow(p[1]-y,2),0.5)-1.414* s ) <= eps)
-              return reArrange(p,c);
-        });
-
-        let x= pL + nX*s/2 + nY *s/2 -s* (step%nY);
-        let y= pT + s * (step%nY);
-
-        ctx.fillRect(x,y, s, s);
-        drawShape(ctx,c_new,box);
-
-        return [c_new,[x,y]];
-        //ctx.arc(x, y,s/2, 0, 2 * Math.PI);
-
-    }
-    
-    function reArrange(p, c)
-    {
-        let c_save=c;
-        let nn=[[s,-s], [0,-s], [-s,-s],
-        [-s,0],[-s,s],[0,s], [s,s], [s,0]];
-        
-        let valid_nn= nn.reduce(n => {
-            c.reduce(ci => {
-                let dist=d(ci,n);
-                if(Math.abs(dist-s) s && dist <= sqrt2 * s )
-                
-            }
-            
-            
-            
-            
-            isCloser([p[0]+ n[0], p[1]+ n[1]],ci, sqrt2* s) || isCloser([p[0]+ n[0], p[1]+ n[1]],ci, s) 
+        let shapeXY= geo.map((row,i)=>{
+            row.map((col,j)=>{
+              let p= [ (center[0] +i)*s + pL , (center[1] +j-2)*s + pT]; 
+              ctx.fillStyle = colors[cI];
+      
+              if(col==1) {
+                box[center[0] +i][center[1] +j-2]=1;
+                ctx.fillRect(p[0],p[1], s, s);
+                text(ctx, p[0]+s/2,p[1]+s/2,cI+1);//getRandomInt(10,100));
+                cI++;
+              }
             })
-            
-          
         })
+
+        return box;
+        
+    }
+
+    function boxBarrier(ctx,box,step)
+    {
+        let nX = Math.floor(canvas.width / s) - 2
+        let nY = Math.floor(canvas.height / s) - 2
+
+        if(step > nY+1 || step > nX+1 ) return box;
+
+        let pX = el.width - nX * s
+        let pY = el.height - nY * s
+                
+        let pL = Math.ceil(pX / 2) - 0.5
+        let pT = Math.ceil(pY / 2) - 0.5
+        let pR = el.width - nX * s - pL
+        let pB = el.height - nY * s - pT
+ 
+        let bxI=Math.round( (nX+nY)/2.0 - step%(nY*10000) );
+        
+        let bx= pL + bxI *s;
+        let by= pT + s * (step%(nY*10000));
+        
+        ctx.fillRect(bx,by, s, s);
+        box[bxI][step%(nY*10000)] +=1; //2 stands for barrier labelling, 1 for our shape, 0 for blank
+        box[Math.round((nX+nY)/2-(step-1)%(nY*10000))][(step-1) %(nY*10000)]=0;
+ 
+       // console.log(box);
+        return box;
+
+    }
+
+    function geoPermutation(geop,box,step)
+    {
+        //console.log(geop);
+        if(geop.length <=0) return [];
+
+        const dim = [
+            box.length,
+            box.reduce((x, y) => Math.max(x, y.length), 0)
+        ];
+        let nX=dim[0];let nY=dim[1];
+    
+        let bxI=Math.round( (nX+nY)/2.0 - (step+1)%(nY*10000) );  
+        let byI=  (step+1) %(nY*10000);
+
+        let center= [Math.floor(nX/2),Math.floor(nY/2)];
+
+        //https://stackoverflow.com/questions/30340361/permutations-with-repetition-using-recursion-javascript
+
+        var fullList= function () {
+            var holdingArr = [];
+            var Options = [[1,-1], [0,-1], [-1,-1],
+                                [-1,0],[-1,1],[0,1], [1,1], [1,0]];
+            var recursiveABC = function(singleSolution) {
+                if (singleSolution.length > geop.length-1  ) {
+                    //if(singleSolution[0] == singleSolution[1] || singleSolution[1] == singleSolution[2] || singleSolution[0] == singleSolution[2]) return;
+
+                    let wrtBox=singleSolution.map((a,i)=>{
+                        //console.log(singleSolution);
+                         return [a[0] + geop[i][0], a[1] + geop[i][1]];
+                    });
+
+                   //if( wrtBox.some((element, index) => {return wrtBox.indexOf(element) != index}) ) {console.log('hare');return;} //removes duplicates
+                   
+                    var uniques = [];
+                    var itemsFound = {};
+                    for(var i = 0, l = wrtBox.length; i < l; i++) {
+                        var stringified = JSON.stringify(wrtBox[i]);
+                        if(itemsFound[stringified]) { return; }
+                        uniques.push(wrtBox[i]);
+                        itemsFound[stringified] = true;
+                    }
+
+                   if( wrtBox.some((element, index) => element[0] == bxI && element[1]== byI )) return;
+
+                    //if(wrtBox.length <5 ) console.log('inside permutation',wrtBox);
+                    holdingArr.push(wrtBox);
+                    return;
+                }
+                for (var i=0; i < Options.length; i++) {
+                    recursiveABC(singleSolution.concat([Options[i]]));
+                }
+            };
+            recursiveABC([]);
+            return holdingArr;
+        };
+        
+        return fullList();
+    }
+
+    function convertToGeometry(geop)
+    {
+        
+        let geo_new=[];
+        geop_X=geop.map(a=>a[0]);
+        geop_Y=geop.map(a=>a[1]);
+
+        let gdim=[ [Math.min(...geop_X),Math.max(...geop_X)],[Math.min(...geop_Y),Math.max(...geop_Y)] ];
+
+        let xi=0,yi=0;
+        for(x=gdim[0][0];x<=gdim[0][1];x++)
+        {
+            let col=[];
+            for(y=gdim[1][0];y<=gdim[1][1];y++)
+            {
+                col.push(0);
+            }
+            geo_new.push(col);
+        }
+        let xx=0;
+        geop.forEach(a=>{
+            geo_new[ a[0]-gdim[0][0] ] [ a[1]-gdim[1][0] ] =1;
+        })
+       // if()
+       // console.log(geop,geo_new);
+       
+        return geo_new;
+    }
+    function adjustGeometry(ctx,geo,geo_ref,box,step)
+    {
+        const dim = [
+            box.length,
+            box.reduce((x, y) => Math.max(x, y.length), 0)
+        ];
+        let nX=dim[0];let nY=dim[1];
+
+        let bxI=Math.round( (nX+nY)/2.0 - (step)%(nY*10000) );  
+        let byI=  (step) %(nY*10000);
+        let center= [Math.floor(nX/2),Math.floor(nY/2)];
+
+        let geop=[];
+        let geop_ref=[];
+        let geo_new=[];
+
+        geo_ref.forEach((a,i)=>{
+            a.forEach((b,j)=> {
+                if(b>0) {
+                    geop_ref.push( [center[0] + i , center[1] +j -2] );
+                }
+            })
+        });  
+        
+        geo.forEach((a,i)=>{
+            a.forEach((b,j)=> {
+                if(b>0) {
+                    geop.push( [center[0] + i , center[1] +j -2] );
+                }
+            })
+        });  
+
+
+       // console.log('step:'+step,geo, geop,[bxI,byI]);
+        if( geop.some(a =>   d(a,[bxI,byI])<= sqrt2 ))
+        {
+            let allGeoP=geoPermutation(geop,box,step);
+            allGeoP= allGeoP.filter(a=>a !=geop );
+         
+            let geop_new= allGeoP[getRandomInt(0,allGeoP.length)];
+            
+            let geo_new= convertToGeometry(geop_new);
+
+           // console.log('in: ',geop,geop_new,geo_new);
+
+            return geo_new;
+        }
+        else //if( geop.some(a=>Math.abs(a[0]-bxI)==1 || Math.abs(a[1]-byI)==1 )) 
+        {
+            let allGeoP=geoPermutation(geop,box,step);
+            //allGeoP= allGeoP.filter(a=>a !=geop );
+            //console.log(geop.some(a=>   d(a,[bxI,byI])<= sqrt2 ),step);
+            let max_sim=0;let max_geo=[];let max_p=[];
+            allGeoP.forEach(p=>{
+                
+                //if(p.some(a=>a.length==4)) console.log(p);
+                let geo_new=convertToGeometry(p);
+                
+                //if(p.length !=5) console.log(p);
+                let sim=symSimilarity(geop_ref,p);
+                if ( sim > max_sim ) {
+                    max_sim=sim;
+                    max_geo= geo_new;
+                    max_p=p;
+                }
+            });
+
+            //if(max_geo.reduce( (r,x) => r + x.reduce( (s,y) => s + y,0),0 ) !=5) console.log(max_geo,max_p,[bxI,byI]);
+           //console.log(max_sim,max_geo,geop,max_p);
+           // console.log('out: ',geop,max_p,max_geo);
+
+            return max_geo;
+        }   
+
+    }
+    function dynamics(ctx,step,geo=[])
+    { 
+        let geo_ref=[
+                [0,1,0,1],
+                [1,1,1,0],
+                [0,1,0,0]
+        ];
+        if(geo.length==0)
+        {     
+            geo=geo_ref;
+        }
+        ctx.clearRect(0,0, canvas.width, canvas.height);
+        
+        let box=boxTheShape(ctx,geo) ;
+        box=boxBarrier(ctx,box,step);
+        geo= adjustGeometry(ctx,geo,geo_ref,box,step);
+        //console.log('top level:',geo,'step:', step);
+
+       //if(step > 10) return;
+        setTimeout(() => {
+            requestAnimationFrame(function() {
+                dynamics(ctx,step,geo);
+            });
+            step+=1;
+        }, 1000 / fps);
         
     }
     
@@ -126,50 +309,30 @@
             Math.pow(x[0]-y[0],2) + Math.pow(x[1]-y[1],2)
         );
     }
+
     function isCloser(x,y,sep)
     {
         if(Math.abs(d(x,y)- sep) <= 0.001) return true;
         else return false;
     }
-    function dynamics(ctx,step,box=[])
-    { 
-        
-        let BoxSemantics= box.length >0 ?box:[0,1,2,3,4];
-                    
-        let Geometry=[ [-1,0],[0,-1],[1,0],[0,1],[0,0] ];
-        //  
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.beginPath();
-        let params=drawGrid (ctx);
-        //ctx=params.ctx;
-        let curImage= scale(Geometry,[[s,s], [s,s], [s,s], [s,s], [s,s] ]);
-        let pL=params.pL;let pY=params.pY;
-        let pT=params.pT;
-        let nY=params.nY;let nX=params.nX;
-        curImage=translate( curImage, [ [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2], [pL+nX*s/2,pT+nY*s/2] ] );
-
-        let x= pL + nX*s/2 + nY *s/2 -s* (step%nY);
-        let y= pT + s * (step%nY);
-
-
-        if( Math.abs(x- pL-nX*s/2) < 3*s ||  Math.abs(y-pT-nY*s/2) < 3*s)
+    function symSimilarity(x,y)
+    {
+        let xp=x.flat(),yp=y.flat();
+      
+       //console.log(xp);console.log(yp);
+        let simIndex=0.0;
+        let len_xp=0.0; let len_yp=0.0;
+        for(let i=0;i<xp.length;i++)
         {
-            BoxSemantics=permute(BoxSemantics)[getRandomInt(0,119)];
+           simIndex+= xp[i] * yp[i];
+           len_xp+=xp[i]*xp[i];
+           len_yp+=yp[i]*yp[i];
         }
-
-        let res=barrier(ctx,params,[x,y]);
-        
-
-        setTimeout(() => {
-            requestAnimationFrame(function() {
-                dynamics(ctx,step,BoxSemantics);
-            });
-            step+=1;
-        }, 1000 / fps);
-
-        //return box;
-
+        let sim= simIndex/Math.sqrt((len_xp *len_yp));
+        //console.log(x.length);
+        return sim;
     }
+    
     function translate(c,x)
     {
       return c.map((p,i)=>{
@@ -188,6 +351,28 @@
             return [p[0] * s [i][0], p[1] * s[i][1] ];
       })
     }
+
+    function shuffle(array) 
+    {
+        //https://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array
+        let counter = array.length;
+
+        // While there are elements in the array
+        while (counter > 0) {
+            // Pick a random index
+            let index = Math.floor(Math.random() * counter);
+
+            // Decrease counter by 1
+            counter--;
+
+            // And swap the last element with it
+            let temp = array[counter];
+            array[counter] = array[index];
+            array[index] = temp;
+        }
+
+        return array;
+   }
 
     function text(ctx,x,y,text)
     {
